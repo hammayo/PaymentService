@@ -1,11 +1,9 @@
 ﻿using ClearBank.DemoFramework.Types;
 
-namespace ClearBank.DemoFramework.Data
-{
-    public interface IAccountDataStore
-    {
-        Account GetAccount(string accountNumber);
+namespace ClearBank.DemoFramework.Data;
 
-        void UpdateAccount(Account account);
-    }
+public interface IAccountDataStore
+{
+    Account? GetAccount(string accountNumber);
+    void UpdateAccount(Account account);
 }

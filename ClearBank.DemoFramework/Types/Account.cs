@@ -1,10 +1,9 @@
-﻿namespace ClearBank.DemoFramework.Types
+﻿namespace ClearBank.DemoFramework.Types;
+
+public record Account
 {
-    public class Account
-    {
-        public string AccountNumber { get; set; }
-        public decimal Balance { get; set; }
-        public AccountStatus Status { get; set; }
-        public AllowedPaymentSchemes AllowedPaymentSchemes { get; set; }
-    }
+    public required string AccountNumber { get; init; }
+    public decimal Balance { get; set; }
+    public AccountStatus Status { get; init; }
+    public AllowedPaymentSchemes AllowedPaymentSchemes { get; init; }
 }

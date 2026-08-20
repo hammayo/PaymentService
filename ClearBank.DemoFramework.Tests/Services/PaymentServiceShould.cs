@@ -1,84 +1,63 @@
-﻿using System;
-using Xunit;
-using Xunit.Abstractions;
+﻿using Microsoft.Extensions.Logging;
 using ClearBank.DemoFramework.Services;
 using ClearBank.DemoFramework.Types;
+using Moq;
+using Xunit;
 
-namespace ClearBank.DemoFramework.Tests.Services
+namespace ClearBank.DemoFramework.Tests.Services;
+
+public class PaymentServiceTests
 {
-    public sealed class PaymentServiceShould : IDisposable
+    private readonly Mock<IAccountService> _accountServiceMock;
+    private readonly Mock<ILogger<PaymentService>> _loggerMock;
+    private readonly PaymentService _sut;
+
+    public PaymentServiceTests()
     {
-        private DataStoreService _ds;
-        private AccountService _as;
-        private PaymentService _ps;
-        private MakePaymentRequest _req;
-        private MakePaymentResult _res;
-        private ITestOutputHelper _output;
+        _accountServiceMock = new Mock<IAccountService>();
+        _loggerMock = new Mock<ILogger<PaymentService>>();
+        _sut = new PaymentService(_accountServiceMock.Object, _loggerMock.Object);
+    }
 
-        public PaymentServiceShould(ITestOutputHelper output)
+    [Fact]
+    public void MakePayment_WithNullRequest_ReturnsFalse()
+    {
+        // Act
+        var result = _sut.MakePayment(null);
+
+        // Assert
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void MakePayment_WithValidFasterPaymentRequest_ReturnsTrue()
+    {
+        // Arrange
+        var request = new MakePaymentRequest 
+        { 
+            PaymentScheme = PaymentScheme.FasterPayments,
+            Amount = 100,
+            DebtorAccountNumber = "12345",
+            CreditorAccountNumber = "67890"
+        };
+
+        var account = new Account
         {
-            // Helper service objects 
-            _ds = new DataStoreService();
-            _as = new AccountService(_ds);
-            _ps = new PaymentService(_as);
+            AccountNumber = "12345",
+            Balance = 200,
+            AllowedPaymentSchemes = AllowedPaymentSchemes.FasterPayments,
+            Status = AccountStatus.Live
+        };
 
-            // Helper objects
-            _req = new MakePaymentRequest();
-            _output = output;
-            _output.WriteLine("Creating payment service...");
-        }
+        _accountServiceMock
+            .Setup(x => x.GetAccount(request.DebtorAccountNumber))
+            .Returns(account);
 
-        [Fact(Skip = "Only for prototype. This is not needed and safe to remove.") ]
-        public void _StubTestCase()
-        {
-            _output.WriteLine("Running StubTestCase...");
-            _res = _ps.MakePayment(_req);
-            Assert.False(_res.Success);
-        }
+        // Act
+        var result = _sut.MakePayment(request);
 
-        [Fact]
-        public void MakePaymentAccountMissingRequestReturnsFalse()
-        {
-            _res = _ps.MakePayment(null);
-            Assert.False(_res.Success);
-        }
-
-        [Fact]
-        public void MakePaymentBacsRequestProcessReturnsTrue()
-        {
-            var reqPay = new MakePaymentRequest { PaymentScheme = PaymentScheme.Bacs };
-            _res = _ps.MakePayment(reqPay);
-            Assert.True(_res.Success);
-        }
-
-        [Fact]
-        public void MakePaymentChapsRequestProcessReturnsTrue()
-        {
-            var reqPay = new MakePaymentRequest { PaymentScheme = PaymentScheme.Chaps };
-            _res = _ps.MakePayment(reqPay);
-            Assert.True(_res.Success);
-        }
-
-        [Fact]
-        public void MakePaymentFasterPaymentRequestProcessReturnsTrue()
-        {
-            var reqPay = new MakePaymentRequest { PaymentScheme = PaymentScheme.FasterPayments };
-            _res = _ps.MakePayment(reqPay);
-            Assert.True(_res.Success);
-        }
-
-        //[Fact]
-        //public void MakePaymentSuccessUpdateAccountReturnsTrue()
-        //{
-        //    var reqPay = new MakePaymentRequest { PaymentScheme = PaymentScheme.Bacs };
-        //    _res = _ps.MakePayment(reqPay);
-
-        //    Assert.True(_res.Success);
-        //}
-
-        public void Dispose()
-        {
-            _output.WriteLine("Disposing payment service!");
-        }
+        // Assert
+        Assert.True(result.Success);
+        _accountServiceMock.Verify(x => x.UpdateAccount(account, request), Times.Once);
     }
 }

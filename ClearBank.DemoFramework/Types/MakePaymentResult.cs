@@ -1,7 +1,6 @@
-﻿namespace ClearBank.DemoFramework.Types
+﻿namespace ClearBank.DemoFramework.Types;
+
+public record MakePaymentResult
 {
-    public class MakePaymentResult
-    {
-        public bool Success { get; set; }
-    }
+    public bool Success { get; init; }
 }

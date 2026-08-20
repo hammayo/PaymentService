@@ -1,92 +1,73 @@
-﻿using System.ComponentModel;
+﻿using Microsoft.Extensions.Logging;
 using ClearBank.DemoFramework.Types;
 
 namespace ClearBank.DemoFramework.Services
 {
-    public class PaymentService : IPaymentService
+    public sealed class PaymentService : IPaymentService
     {
-        private IAccountService _as;
+        private readonly IAccountService _accountService;
+        private readonly ILogger<PaymentService> _logger;
 
-        public PaymentService(IAccountService accountService)
+        public PaymentService(IAccountService accountService, ILogger<PaymentService> logger)
         {
-            _as = accountService;
+            _accountService = accountService ?? throw new ArgumentNullException(nameof(accountService));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public MakePaymentResult MakePayment(MakePaymentRequest request)
+        public MakePaymentResult MakePayment(MakePaymentRequest? request)
         {
-            Account account = request != null ? _as.GetAccount(request.DebtorAccountNumber) : null;
-            if (account == null)
+            if (request is null)
             {
-                // "Request Invalid: Unable to find details for supplied account number!"
-                // TODO: Ask how to catch this?
+                _logger.LogWarning("Payment request was null");
                 return new MakePaymentResult { Success = false };
             }
 
-            var result = TakePayment(request, account);
+            var account = _accountService.GetAccount(request.DebtorAccountNumber);
+            if (account is null)
+            {
+                _logger.LogWarning("Account not found for account number: {AccountNumber}", request.DebtorAccountNumber);
+                return new MakePaymentResult { Success = false };
+            }
+
+            var result = ProcessPayment(request, account);
 
             if (result.Success)
             {
-                _as.UpdateAccount(account, request);
-                result.Success = true;
+                _accountService.UpdateAccount(account, request);
+                _logger.LogInformation(
+                    "Payment processed successfully. Scheme: {Scheme}, Amount: {Amount}, Account: {Account}", 
+                    request.PaymentScheme, 
+                    request.Amount, 
+                    request.DebtorAccountNumber);
             }
 
             return result;
         }
 
-        // Abstract away following private helper methods into seprate sub-classes based and
-        // may consider into Factories and write test cases accordingly, BUT for now I decided 
-        // not to do this at these stage - kept is simple for the purpose of readability.
-        // NOTE: The account.AllowedPaymentSchemes.HasFlag(xxx) can be refactored into Is<T>Valid()
-        private static MakePaymentResult TakePayment(MakePaymentRequest paymentRequest, Account accountInfo)
-        {
-            var paymentResult = new MakePaymentResult();
-            // TODO: Factory pattern for each type of payment!
-            // For now just call appropriate helper methods
-            switch (paymentRequest.PaymentScheme)
+        private static MakePaymentResult ProcessPayment(MakePaymentRequest request, Account account) =>
+            request.PaymentScheme switch
             {
-                case PaymentScheme.Bacs:
-                    BacsPaymentProcess(accountInfo, paymentResult);
-                    break;
+                PaymentScheme.Bacs => ProcessBacsPayment(account),
+                PaymentScheme.Chaps => ProcessChapsPayment(account),
+                PaymentScheme.FasterPayments => ProcessFasterPayment(request, account),
+                _ => throw new ArgumentException($"Invalid payment scheme: {request.PaymentScheme}", nameof(request))
+            };
 
-                case PaymentScheme.Chaps:
-                    ChapsPaymentProcess(accountInfo, paymentResult);
-                    break;
+        private static MakePaymentResult ProcessBacsPayment(Account account) =>
+            new() { Success = account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.Bacs) };
 
-                case PaymentScheme.FasterPayments:
-                    FasterPaymentProcess(paymentRequest, accountInfo, paymentResult);
-                    break;
+        private static MakePaymentResult ProcessChapsPayment(Account account) =>
+            new()
+            {
+                Success = account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.Chaps) &&
+                         account.Status == AccountStatus.Live
+            };
 
-                default:
-                    throw new InvalidEnumArgumentException("Invalid PaymentScheme enum");
-            }
-
-            return paymentResult;
-        }
-
-        private static void BacsPaymentProcess(Account account, MakePaymentResult result)
-        {
-            if (account == null) return;
-            result.Success = !account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.Bacs);
-        }
-
-        private static void ChapsPaymentProcess(Account account, MakePaymentResult result)
-        {
-            if (account == null) return;
-            var isChaps = !account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.Chaps);
-            if (!isChaps)
-                isChaps = (account.Status == AccountStatus.Live);
-
-            result.Success = isChaps;
-        }
-
-        private static void FasterPaymentProcess(MakePaymentRequest request, Account account, MakePaymentResult result)
-        {
-            if (account == null) return;
-            var isFasterPayments = !account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.FasterPayments);
-            if (!isFasterPayments)
-                isFasterPayments = (account.Balance < request.Amount) ? true : false;
-
-            result.Success = isFasterPayments;
-        }
+        private static MakePaymentResult ProcessFasterPayment(MakePaymentRequest request, Account account) =>
+            new()
+            {
+                Success = account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.FasterPayments) &&
+                         account.Balance >= request.Amount
+            };
     }
 }

@@ -1,9 +1,8 @@
 ﻿using ClearBank.DemoFramework.Types;
 
-namespace ClearBank.DemoFramework.Services
+namespace ClearBank.DemoFramework.Services;
+
+public interface IPaymentService
 {
-    public interface IPaymentService
-    {
-        MakePaymentResult MakePayment(MakePaymentRequest request);
-    }
+    MakePaymentResult MakePayment(MakePaymentRequest? request);
 }

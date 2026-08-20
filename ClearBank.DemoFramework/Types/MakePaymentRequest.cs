@@ -1,17 +1,11 @@
 ﻿using System;
 
-namespace ClearBank.DemoFramework.Types
+namespace ClearBank.DemoFramework.Types;
+
+public record MakePaymentRequest
 {
-    public class MakePaymentRequest
-    {
-        public string CreditorAccountNumber { get; set; }
-
-        public string DebtorAccountNumber { get; set; }
-
-        public decimal Amount { get; set; }
-
-        public DateTime PaymentDate { get; set; }
-
-        public PaymentScheme PaymentScheme { get; set; }
-    }
+    public required string CreditorAccountNumber { get; init; }
+    public required string DebtorAccountNumber { get; init; }
+    public decimal Amount { get; init; }
+    public PaymentScheme PaymentScheme { get; init; }
 }
